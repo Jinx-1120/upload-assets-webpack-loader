@@ -71,7 +71,8 @@ function getEncodedData(
   if (generator) {
     return generator(content, mimetype, encoding, resourcePath);
   }
-  return `data:${mimetype};charset=utf-8;${encoding ? `${encoding}` : ''},${content.toString('base64')}`;
+  const buffer = fs.readFileSync(resourcePath);
+  return `data:${mimetype};base64,${buffer.toString('base64')}`;
 }
 
 interface IOptions {
@@ -79,7 +80,7 @@ interface IOptions {
   mimetype: boolean | string;
   encoding: boolean | BufferEncoding;
   generator: Function;
-  uploadRequest: (fileBuffer: fs.ReadStream, fileName: string) => Promise<string>;
+  uploadRequest: (fileBuffer: fs.ReadStream, fileName: string, resourcePath: string) => Promise<string>;
   fallback: string;
   esModule: boolean;
 }
@@ -101,30 +102,29 @@ function uploadAssetsLoader(this: LoaderContext<any>, content: Buffer) {
   const { resourcePath, rootContext } = this;
   const callback = this.async();
   const fileMd5 = getHashDigest(content, 'md5', 'hex', 9999);
+  getCacheForFile(rootContext);
+  const cacheUrl = getCache(fileMd5);
+  if (cacheUrl) {
+    callback(null, `${esModule ? 'export default' : 'module.exports ='} '${cacheUrl}';`);
+    return;
+  }
   if (shouldTransform(options.limit, content.length)) {
     const mimetype = getMimetype(options.mimetype, resourcePath);
     const encoding = getEncoding(options.encoding);
-    if (typeof content === 'string') {
-      content = Buffer.from(content);
-    }
     const encodedData = getEncodedData(options.generator, mimetype, encoding, content, resourcePath);
+    setCache(fileMd5, encodedData);
     callback(null, `${esModule ? 'export default' : 'module.exports ='} ${JSON.stringify(encodedData)}`);
     return;
   }
   const { uploadRequest } = options;
-  getCacheForFile(rootContext);
+
   if (!uploadRequest) {
     throw new Error(`uploadRequest is required`);
   }
-  const cacheUrl = getCache(fileMd5);
-  if (cacheUrl) {
-    callback(null, `${esModule ? 'export default' : 'module.exports ='} '${cacheUrl}';`);
-  } else {
-    uploadRequest(fs.createReadStream(resourcePath), path.basename(resourcePath)).then((url) => {
-      setCache(fileMd5, url);
-      callback(null, `${esModule ? 'export default' : 'module.exports ='} '${url}';`);
-    });
-  }
+  uploadRequest(fs.createReadStream(resourcePath), path.basename(resourcePath), resourcePath).then((url) => {
+    setCache(fileMd5, url);
+    callback(null, `${esModule ? 'export default' : 'module.exports ='} '${url}';`);
+  });
 }
 
 export default uploadAssetsLoader;

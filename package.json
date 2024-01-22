@@ -1,6 +1,6 @@
 {
   "name": "upload-assets-webpack-loader",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "description": "custome upload assets for webpack",
   "main": "dist/index.js",
   "module": "dist/index.mjs",

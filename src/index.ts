@@ -8,6 +8,9 @@ import schema from './options.json';
 import { Schema } from 'schema-utils/declarations/validate';
 import { getCache, getCacheForFile, setCache } from './cache';
 
+function isDevMode() {
+  return process.env.NODE_ENV === 'development'
+}
 function shouldTransform(limit: boolean | string | number, size: number) {
   if (typeof limit === 'boolean') {
     return limit;
@@ -104,7 +107,7 @@ function uploadAssetsLoader(this: LoaderContext<any>, content: Buffer) {
   const fileMd5 = getHashDigest(content, 'md5', 'hex', 9999);
   getCacheForFile(rootContext);
   const cacheUrl = getCache(fileMd5);
-  if (cacheUrl) {
+  if (cacheUrl && isDevMode()) {
     callback(null, `${esModule ? 'export default' : 'module.exports ='} '${cacheUrl}';`);
     return;
   }
@@ -112,7 +115,7 @@ function uploadAssetsLoader(this: LoaderContext<any>, content: Buffer) {
     const mimetype = getMimetype(options.mimetype, resourcePath);
     const encoding = getEncoding(options.encoding);
     const encodedData = getEncodedData(options.generator, mimetype, encoding, content, resourcePath);
-    setCache(fileMd5, encodedData);
+    isDevMode() && setCache(fileMd5, encodedData);
     callback(null, `${esModule ? 'export default' : 'module.exports ='} ${JSON.stringify(encodedData)}`);
     return;
   }
@@ -122,7 +125,7 @@ function uploadAssetsLoader(this: LoaderContext<any>, content: Buffer) {
     throw new Error(`uploadRequest is required`);
   }
   uploadRequest(fs.createReadStream(resourcePath), path.basename(resourcePath), resourcePath).then((url) => {
-    setCache(fileMd5, url);
+    isDevMode() && setCache(fileMd5, url);
     callback(null, `${esModule ? 'export default' : 'module.exports ='} '${url}';`);
   });
 }
